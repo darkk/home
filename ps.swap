@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+# Shows processes using lots of SWAP
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+nowarn=true
+
+printf "%5s %6s %s\n" PID SWAP COMMAND
+for i in /proc/[0-9]*; do
+	pid=$(basename $i)
+	swapusage=$(awk 'BEGIN {S=0} /^Swap/ {S += $2} END {print S}' < $i/smaps)
+	if $nowarn && [ "$(wc -l < $i/smaps)" = 0 ]; then
+		echo "$0: $i/smaps is empty!" 1>&2
+		nowarn=false
+	fi
+	cmdline=$(tr '\0' ' ' < $i/cmdline)
+	if [ "$swapusage" -gt 0 ]; then
+		printf "%5i %6i %s\n" "$pid" "$swapusage" "$cmdline"
+	fi
+done | sort -k 2 -n -r

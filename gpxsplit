@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# Splits *.gpx file into set of YYYY-MM-DD-$prefix.gpx files
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+if [ -z "$1" ]; then
+	source=-
+else
+	if [ ! -r "$1" ]; then
+		echo "Usage: $0 <source.gpx> [prefix]"
+		exit 1
+	fi
+	source=$1
+fi
+shift
+
+if [ -z "$1" ]; then
+	prefix=$RANDOM
+else
+	prefix=$1
+fi
+shift
+
+list_track_startdates() {
+	xmlstarlet sel -N x="http://www.topografix.com/GPX/1/0" \
+		-t --match //x:trk -v "substring-before(./x:trkseg/x:trkpt[position()=1]/x:time, 'T')" -n - \
+	| uniq
+}
+
+while read start ; do
+	if [ ! -z "$start" ]; then
+		start_dotted=$(echo "$start" | tr '-' '.')
+		xmlstarlet ed -P -S -N x="http://www.topografix.com/GPX/1/0" \
+			--delete "//x:trk[substring-before(./x:trkseg/x:trkpt[position()=1]/x:time, 'T')!='$start']" \
+			< "$source" > "${start_dotted}-$prefix.gpx"
+	fi
+done < <(list_track_startdates < "$source")

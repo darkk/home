@@ -1,0 +1,98 @@
+#!/bin/bash
+#
+# Make HTML ebook from some livejournal post series (sharing same tag).
+# It's possible to use calibre to convert this series to ePub ebook.
+# -- Leonid Evdokimov <leon@darkk.net.ru> 
+
+set -e
+set -o noclobber
+
+getposts() {
+    grep -o "href=\"http://$LJUSER.livejournal.com/[0-9]*.html\"" "$1" | sort -u | sed 's/^href="//;s/"$//'
+}
+
+gettitle() {
+  grep -o "<title>.*</title>" "$1" | sed 's/^<title>//;s/<\/title>$//' | tr '/' '-'
+}
+
+getdate() {
+  grep -o "http://$LJUSER.livejournal.com/[0-9]*/[0-9]*/[0-9]*/" "$1" | cut -d / -f 4,5,6 | tr / .
+}
+
+if [ -z "$1" -o -z "$2" -o -z "$3" ]; then
+    echo "Usage: $0 <ljuser> <tag> <urlencoded-tag>"
+    exit 1
+fi
+
+LJUSER=$1
+TAG=$2
+URLTAG=$3
+
+skip=0
+
+mkdir -p "$LJUSER - $TAG"
+pushd "$LJUSER - $TAG"
+
+mkdir -p tag-index
+while :; do
+    fname=tag-index/$skip.html
+    if [ ! -r $fname ]; then
+        wget -O $fname "http://$LJUSER.livejournal.com/?skip=$skip&tag=$URLTAG&format=light"
+    fi
+    posts_per_page=$(getposts $fname | wc -l)
+    skip=$(( $skip + $posts_per_page ))
+    if [ "$posts_per_page" -eq 0 ]; then
+        break
+    fi
+done
+
+mkdir -p posts
+urls=$(for fname in tag-index/*.html; do getposts "$fname"; done | sort | uniq)
+for url in $urls; do
+    fname=posts/$(echo $url | grep -o '[0-9]*.html')
+    if [ ! -r "$fname" ]; then
+        wget -O "$fname" "$url?format=light"
+    fi
+done
+
+mkdir -p posts_processed
+for src in posts/*.html; do
+    fname=posts_processed/$(basename "$src")
+    if [ ! -r "$fname" ]; then
+        # calibre strips away <form> content and livejournal puts all comments into <form> tag
+        sed 's/<form[^>]*>//g;s/<\/form>//g' < "$src" > "$fname"
+    fi
+done
+
+mkdir ebook
+for fname in posts_processed/*.html; do
+    title=$(gettitle "$fname")
+    date=$(getdate "$fname")
+    ln -s ../$fname ebook/"$date $title.html"
+done
+
+maxdate=$(for fname in ebook/[0-9]*.html; do getdate "$fname"; done | sort | tail -1 | tr . -)
+
+toc=ebook/index.html
+cat >$toc <<END
+<html>
+<head>
+<!-- see http://www.mobileread.com/forums/showpost.php?p=712544 for additional meta-tags -->
+<meta name="Title" content="$TAG" />
+<meta name="Author" content="$LJUSER" />
+<meta name="Description" content="Из ЖЖ $LJUSER по тэгу &quot;$TAG&quot;" />
+<meta name="Date of creation" content="$maxdate" />
+</head>
+<body><h1>Из ЖЖ $LJUSER по тэгу &quot;$TAG&quot; к $maxdate</h1><ul>
+END
+
+for fname in ebook/[0-9]*.html; do
+    link=$(basename "$fname" | html)
+    echo "<li><a href=\"$link\">$link</a></li>" >> $toc
+done
+
+cat >>$toc <<END
+</ul></body></html>
+END
+
+# vim:set tabstop=4 softtabstop=4 shiftwidth=4 expandtab:

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+btn1=$(xmodmap -pp | awk '($1 == 1) {print $2}')
+if [ "$btn1" -eq 1 ]; then
+	xmodmap -e 'pointer = 3 2 1'
+	echo "Switched to left-handed mouse."
+else
+	xmodmap -e 'pointer = 1 2 3'
+	echo "Switched to right-handed mouse."
+fi
+
+# vim:set tabstop=4 softtabstop=4 shiftwidth=4 expandtab:

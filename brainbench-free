@@ -1,0 +1,123 @@
+#!/bin/bash
+# 
+#  Script to fetch list of free tests from brainbench.com and dump it
+#  in easy-to-read form.
+#
+#  Copyright (C) 2008  Leonid Evdokimov <leon@darkk.net.ru>
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# 
+#  Origin:
+#  http://darkk.net.ru/home/bin/brainbench-update.sh
+#
+#  Changelog:
+#  2008.12.28, 0.1 - Initial revision.
+
+
+# File that's used to store copy of list of tests to produce diffs.
+archive=$HOME/.brainbench-free.txt
+
+
+########################################################################
+# Code:
+
+function http_get {
+	if type -P wget >/dev/null; then
+		wget -q --no-verbose "$1" -O -
+	elif type -P curl >/dev/null; then
+		curl --silent --show-error --fail "$1"
+	elif type -P GET >/dev/null; then
+		GET "$1"
+	else
+		echo "$0: you need some HTTP-downloader. curl, wget and GET are supported." 1>&2
+		exit 1
+	fi
+}
+
+function xml_parse {
+	if type -P xmlstarlet >/dev/null; then
+		xmlstarlet sel \
+		    -N x="http://www.w3.org/1999/xhtml" \
+		    -t \
+			--match "//x:td[@name='test_cost' and text()='FREE']/../x:td[position()=1]" \
+			-v "."  \
+			--if  'x:a/attribute::href' \
+			    -v "concat(' (http://www.brainbench.com', x:a/attribute::href, ')')" \
+			--break \
+			-n
+	elif type -P xsltproc >/dev/null; then
+		# generated with $(xmlstarlet sel -C ---"---)
+		# xsltproc can't read xslt from pipe, so temporary file is used
+		local xslt=$(mktemp $(basename "$0").xslt.XXXXXX)
+		cat >"$xslt" <<-EOF
+		<?xml version="1.0"?>
+		<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+		 xmlns:exslt="http://exslt.org/common"
+		 xmlns:math="http://exslt.org/math"
+		 xmlns:date="http://exslt.org/dates-and-times"
+		 xmlns:func="http://exslt.org/functions"
+		 xmlns:set="http://exslt.org/sets"
+		 xmlns:str="http://exslt.org/strings"
+		 xmlns:dyn="http://exslt.org/dynamic"
+		 xmlns:saxon="http://icl.com/saxon"
+		 xmlns:xalanredirect="org.apache.xalan.xslt.extensions.Redirect"
+		 xmlns:xt="http://www.jclark.com/xt"
+		 xmlns:libxslt="http://xmlsoft.org/XSLT/namespace"
+		 xmlns:test="http://xmlsoft.org/XSLT/"
+		 xmlns:x="http://www.w3.org/1999/xhtml"
+		 extension-element-prefixes="exslt math date func set str dyn saxon xalanredirect xt libxslt test"
+		 exclude-result-prefixes="math str">
+		<xsl:output omit-xml-declaration="yes" indent="no"/>
+		<xsl:param name="inputFile">-</xsl:param>
+		<xsl:template match="/">
+		  <xsl:call-template name="t1"/>
+		</xsl:template>
+		<xsl:template name="t1">
+		  <xsl:for-each select="//x:td[@name='test_cost' and text()='FREE']/../x:td[position()=1]">
+		    <xsl:value-of select="."/>
+		    <xsl:if test="x:a/attribute::href">
+		      <xsl:value-of select="concat(' (http://www.brainbench.com', x:a/attribute::href, ')')"/>
+		    </xsl:if>
+		    <xsl:value-of select="'&#10;'"/>
+		  </xsl:for-each>
+		</xsl:template>
+		</xsl:stylesheet>
+		EOF
+		xsltproc --nonet --nowrite --nomkdir "$xslt" -
+		retval=$?
+		rm -f "$xslt"
+		return $retval
+	else
+		echo "$0: You also need either xmlstarlet or xsltproc" 1>&2
+		exit 1
+	fi
+}
+
+set -o errexit
+
+if [ ! -f "$archive" ]; then
+    touch "$archive"
+fi
+
+temporary=$(mktemp $(basename $archive).XXXXXX)
+trap "test -f \"${temporary}\" && rm -f \"${temporary}\"; exit 1" 0 1 2 3 15
+
+echo "# Created with $0 on $(date)." >> "$temporary"
+
+http_get http://www.brainbench.com/xml/bb/common/testcenter/alltests.xml | \
+tidy -wrap 0 -numeric -asxml -utf8 2>/dev/null | \
+xml_parse | grep '^.' | sort >> "$temporary"
+
+diff -u <(sed "/^#/d" "$archive") <(sed "/^#/d" "$temporary") || true
+mv "$temporary" "$archive"

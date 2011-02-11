@@ -1,0 +1,6 @@
+#!/bin/sh
+#
+# Filter, that escapes HTML special characters.
+
+exec sed -e 's,&,\&amp;,g;s,",\&quot;,g;s,<,\&lt;,g;s,>,\&gt;,g' "$@"
+

@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+# Generates `good` random password
+#
+
+if [ -z "$1" ]; then
+	LEN=12
+else
+	LEN=$1
+fi
+
+if type -t uuencode >/dev/null ; then
+	function encode { uuencode -m - | sed '1d;3d'; }
+elif type -t base64 >/dev/null ; then
+	function encode { base64 -; }
+else
+	echo "There is no suitable base64encode function" 1>&2
+	exit 1
+fi
+
+PASSWORD=$(head -c $(($LEN * 2)) /dev/urandom | encode | tr '\n' ' ' | sed 's/[^a-zA-Z0-9]//g' | head -c $LEN)
+echo "$PASSWORD"

@@ -1,0 +1,30 @@
+#!/bin/bash
+# 
+# Script to show PID environment in human-readable form.
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+if [ $# = 0 ]; then
+	echo "Usage: $0: pid [pid] [pid]..."
+	exit 0
+fi
+
+if [ $# -gt 1 ]; then
+	multipid=true
+else
+	multipid=false
+fi
+
+while [ $# != 0 ]; do
+	pid=$1
+	shift
+
+	if [ -d "/proc/$pid" ]; then
+		if $multipid; then
+			sed "s,\x00,\n,g" < /proc/$pid/environ | sed "s,^,$pid:,"
+		else
+			sed "s,\x00,\n,g" < /proc/$pid/environ
+		fi
+	else
+		echo "$0: $pid is not a pid" 1>&2
+	fi
+done
