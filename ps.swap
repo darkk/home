@@ -7,6 +7,9 @@ nowarn=true
 
 printf "%5s %6s %s\n" PID SWAP COMMAND
 for i in /proc/[0-9]*; do
+	if [ ! -r $i/smaps ]; then
+		continue
+	fi
 	pid=$(basename $i)
 	swapusage=$(awk 'BEGIN {S=0} /^Swap/ {S += $2} END {print S}' < $i/smaps)
 	if $nowarn && [ "$(wc -l < $i/smaps)" = 0 ]; then
