@@ -1,0 +1,9 @@
+# Write your default config options here!
+stop-xscreensaver=1
+#heartbeat-cmd="xscreensaver-command -deactivate > /dev/null"
+# & matters as mplayer wait()'s for the command to finish
+heartbeat-cmd="xdg-screensaver reset >/dev/null &"
+subcp=cp1251
+subfont-text-scale=3
+ao=alsa
+vo=xv

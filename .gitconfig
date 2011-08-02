@@ -1,0 +1,7 @@
+[user]
+	email = leon@darkk.net.ru
+	name = Leonid Evdokimov
+[color]
+	ui = auto
+[core]
+	excludesfile = /home/darkk/.config/git/gitignore

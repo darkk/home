@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -o errexit
+
+if [ "$#" = 0 -o "$#" -gt 2 ]; then
+    echo "Usage: $0 <path/to/home.git> [\$HOME]" 1>&2
+    exit 1
+fi
+
+cd "$1"
+find . -type f -follow '!' -path './.git/*' | while read gitpath; do 
+    gitdir=$(dirname $gitpath)
+    dstdir=$HOME/$gitdir
+    dstpath=$HOME/$gitpath
+    if [ '!' -d "$dstdir" ]; then
+        mkdir -p "$dstdir"
+    fi
+    if [ -a "$dstpath" ]; then
+        dstinode=$(stat --format=%i "$dstpath")
+        gitinode=$(stat --format=%i "$gitpath")
+        if [ "$dstinode" != "$gitinode" ]; then
+            echo "Different inodes! Resolve!"
+            ls -l "$dstpath" "$gitpath"
+            exit 1
+        else
+            echo "$gitpath is ok (inode $gitinode)"
+        fi
+    else
+        # hardlinks are awesome
+        ln "$gitpath" "$dstpath"
+    fi
+done
