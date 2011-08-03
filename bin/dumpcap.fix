@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# http://brainstorm.ubuntu.com/idea/14140/
+set -e
+
+gid=$(id -g)
+exe=$(which dumpcap)
+ls -l $exe
+set -x
+sudo chgrp $gid $exe
+sudo chmod o-rwx $exe
+if ! sudo setcap cap_net_raw,cap_net_admin+eip $exe; then
+    sudo chmod u+s $exe
+fi
+ls -l $exe
