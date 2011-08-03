@@ -23,6 +23,10 @@ set wildmode=list:longest
 set noequalalways
 set mouse=n             " Normal mode
 
+" showing special chars
+set listchars=tab:» ,trail:·
+set list
+
 set exrc " Read local .vimrc
 
 " toggle with :set spell / :set nospell
@@ -75,6 +79,9 @@ endif
 if isdirectory("src/include")
 	set path+=src/include
 endif
+
+" TODO: add better path detection
+set path+=/usr/include/c++/4.5
 
 command Diff call s:diff()
 command FileDiff call s:diff(bufname("%"))
