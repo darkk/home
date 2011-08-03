@@ -24,7 +24,7 @@ set noequalalways
 set mouse=n             " Normal mode
 
 " showing special chars
-set listchars=tab:» ,trail:·
+set listchars=tab:»\ ,trail:·
 set list
 
 set exrc " Read local .vimrc
