@@ -22,7 +22,7 @@ find . -type f -follow '!' -path './.git/*' | while read gitpath; do
             echo "Different inodes! Resolve!"
             ls -li "$dstpath" "$gitpath"
         else
-            echo "$gitpath is ok (inode $gitinode)"
+            : echo "$gitpath is ok (inode $gitinode)"
         fi
     else
         # hardlinks are awesome
