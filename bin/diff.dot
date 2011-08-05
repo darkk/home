@@ -1,0 +1,11 @@
+#!/bin/bash
+
+find . -mindepth 1 -type d '!' -path './.git/*' '!' -path './.git' | while read dir; do
+    if ! diff <(cd "$HOME/$dir"; find . -maxdepth 1) <(cd "$dir"; find . -maxdepth 1) >/dev/null; then
+        echo "--- $HOME/$dir"
+        echo "+++ $PWD/$dir"
+        diff -U 0 <(cd "$HOME/$dir"; find . -maxdepth 1) <(cd "$dir"; find . -maxdepth 1) | sed 1,2d
+    fi
+done
+
+# vim:set syntax=sh:

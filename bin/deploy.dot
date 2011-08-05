@@ -29,3 +29,5 @@ find . -type f -follow '!' -path './.git/*' | while read gitpath; do
         ln "$gitpath" "$dstpath"
     fi
 done
+
+# vim:set syntax=sh:
