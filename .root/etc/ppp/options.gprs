@@ -1,0 +1,28 @@
+115200
+nodetach
+updetach
+defaultroute
+# I have local resolver that is good for me
+# usepeerdns
+local
+noauth
+noccp
+
+# Current version of script fails to work with Nokia E61.
+# disconnect 'chat -V -f /etc/ppp/chat-gprs-down'
+
+# kernel: [5082538.026000] usb 2-2: USB disconnect, address 33
+# pppd[25103]: Modem hangup
+# pppd[25103]: Connect time 44.8 minutes.
+# pppd[25103]: Sent 299458 bytes, received 322930 bytes.
+# kernel: [5082538.027000] pl2303 2-2:1.0: device disconnected
+# pppd[25103]: Connection terminated.
+# kernel: [5082538.073000] pl2303 ttyUSB1: pl2303 converter now disconnected from ttyUSB1
+# kernel: [5082538.129000] usb 2-2: new full speed USB device using uhci_hcd and address 34
+# kernel: [5082538.258000] pl2303 2-2:1.0: pl2303 converter detected
+# kernel: [5082538.258000] usb 2-2: pl2303 converter now attached to ttyUSB1
+#
+# So we can't use persist as we have to restart pppd if we use pl2303
+
+holdoff 5
+persist

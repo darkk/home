@@ -1,0 +1,3 @@
+/dev/gprs
+
+connect 'chat -V -T internet -f /etc/ppp/chat-gprs'

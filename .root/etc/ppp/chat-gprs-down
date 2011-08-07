@@ -1,0 +1,5 @@
+ABORT BUSY
+ABORT ERROR
+ABORT 'NO DIALTONE'
+''    '\K\d\d\d+++\d\d\d'
+OK    ATH

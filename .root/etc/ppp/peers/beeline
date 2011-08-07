@@ -1,0 +1,5 @@
+/dev/gprs
+
+remotename beeline
+user beeline
+connect 'chat -V -T internet.beeline.ru -f /etc/ppp/chat-gprs'

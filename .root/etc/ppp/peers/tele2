@@ -1,0 +1,4 @@
+/dev/gprs
+
+remotename tele2
+connect 'chat -V -T internet.tele2.ru -f /etc/ppp/chat-gprs'
