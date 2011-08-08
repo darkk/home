@@ -8,7 +8,7 @@ if [ "$#" = 0 -o "$#" -gt 2 ]; then
 fi
 
 cd "$1"
-find . -type f -follow '!' -path './.git/*' | while read gitpath; do 
+find . -type f -follow '!' -path './.git/*' '!' -path './.root/*' | while read gitpath; do
     gitdir=$(dirname $gitpath)
     dstdir=$HOME/$gitdir
     dstpath=$HOME/$gitpath

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-find . -mindepth 1 -type d '!' -path './.git/*' '!' -path './.git' | while read dir; do
+find . -mindepth 1 -type d '!' -path './.git/*' '!' -path './.git' '!' -path './.root/*' '!' -path './.root' | while read dir; do
     if ! diff <(cd "$HOME/$dir"; find . -maxdepth 1) <(cd "$dir"; find . -maxdepth 1) >/dev/null; then
         echo "--- $HOME/$dir"
         echo "+++ $PWD/$dir"
