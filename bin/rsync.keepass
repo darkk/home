@@ -1,0 +1,57 @@
+#!/bin/bash
+# Shell replacement to prevent occasional keepassx database overwriting on
+# sync.  Write to ~/.ssh/authorized_keys the following line:
+#   command="~/bin/rsync.keepass" ssh-dss A...[the-key]...0= rsync@android
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+set -o errexit
+
+mtime() {
+    stat --format %Y "$1"
+}
+
+hrmtime() {
+    stat --format %y "$1"
+}
+
+base=$HOME/.config/keepassx.db
+db=$base/keepass.kdb
+ts=lmod.$(hostname)
+touch -r "$db" "$base/$ts"
+tmp=/tmp/keepassx.db.$USER
+
+rm -rf "$tmp"
+
+# $SSH_ORIGINAL_COMMAND:
+# <-- rsync --server --sender -vlHogDtre.i . ~/.config/keepassx.db/
+# --> rsync --server -vlHogDtre.i . ~/.config/keepassx.db/
+
+if [[ "$SSH_ORIGINAL_COMMAND" = "rsync --server --sender -"* ]]; then
+    exec rsync --server --sender -va . "$base"/
+elif  [[ "$SSH_ORIGINAL_COMMAND" = "rsync --server -"* ]]; then
+    rsync -a "$base"/ "$tmp"/
+    rsync --server -va . "$tmp"/
+    ret=$?
+    this=$(mtime "$base/$ts")
+    remote=$(mtime "$tmp/$ts")
+    if [ "$this" = "$remote" ]; then
+        # no local modifications since last sync, push can be accepted
+        if [ ! -a "$db.lock" ]; then
+            rsync -a "$tmp"/ "$base"/
+        else
+            echo 1>&2 "Can't accepted data: $db.lock exists"
+            ret=11
+        fi
+    else
+        hrthis=$(hrmtime "$base/$ts")
+        hrremore=$(hrmtime "$tmp/$ts")
+        echo 1>&2 "Can't accept data: there are local modifications at $ts"
+        echo 1>&2 "src: $hrremore"
+        echo 1>&2 "dst: $hrthis"
+        ret=11 # error in file i/o in man rsync(1)
+    fi
+    rm -rf "$tmp"
+    exit $ret
+else
+    exit 1
+fi
