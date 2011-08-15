@@ -7,6 +7,7 @@
 # -- Leonid Evdokimov <leon@darkk.net.ru>
 
 set -o errexit
+#set -o xtrace
 
 mtime() {
     stat --format %Y "$1"
@@ -16,11 +17,26 @@ hrmtime() {
     stat --format %y "$1"
 }
 
+dosync() {
+    # no local modifications since last sync, push can be accepted
+    if [ ! -a "$db.lock" ]; then
+        rsync -a "$tmp"/ "$base"/
+    else
+        echo 1>&2 "Can't accepted data: $db.lock exists"
+        ret=11
+    fi
+}
+
 base=$HOME/.config/keepassx.db
 db=$base/keepass.kdb
 ts=lmod.$(hostname)
-touch -r "$db" "$base/$ts"
 tmp=/tmp/keepassx.db.$USER
+
+mkdir -p --mode 0700 "$base"
+
+if [ -e "$db" ]; then
+    touch -r "$db" "$base/$ts"
+fi
 
 rm -rf "$tmp"
 
@@ -34,23 +50,36 @@ elif  [[ "$SSH_ORIGINAL_COMMAND" = "rsync --server -"* ]]; then
     rsync -a "$base"/ "$tmp"/
     rsync --server -va . "$tmp"/
     ret=$?
-    this=$(mtime "$base/$ts")
-    remote=$(mtime "$tmp/$ts")
-    if [ "$this" = "$remote" ]; then
-        # no local modifications since last sync, push can be accepted
-        if [ ! -a "$db.lock" ]; then
-            rsync -a "$tmp"/ "$base"/
+    if [ -e "$base/$ts" -a -e "$tmp/$ts" ]; then
+        this=$(mtime "$base/$ts")
+        remote=$(mtime "$tmp/$ts")
+        if [ "$this" = "$remote" ]; then
+            dosync
         else
-            echo 1>&2 "Can't accepted data: $db.lock exists"
+            echo 1>&2 "Can't accept data: there are local modifications at $ts"
+            echo 1>&2 "src: "$(hrmtime "$tmp/$ts")
+            echo 1>&2 "dst: "$(hrmtime "$base/$ts")
+            ret=11 # error in file i/o in man rsync(1)
+        fi
+    elif [ -e "$base/$ts" -a ! -e "$tmp/$ts" ]; then
+        echo 1>&2 "Can't accept data: src was never synced with dst (no $ts)"
+        echo 1>&2 "src: ---"
+        echo 1>&2 "dst: "$(hrmtime "$base/$ts")
+        ret=11 # error in file i/o in man rsync(1)
+    elif [ ! -e "$base/$ts" -a -e "$tmp/$ts" ]; then
+        if [ -e "$db" ]; then
+            echo 1>&2 "Can't accept data: src has $ts and dst has not while $db exists."
+            echo 1>&2 "src: "$(hrmtime "$tmp/$ts")
+            echo 1>&2 "dst: ---"
+            echo 1>&2 "db : "$(hrmtime "$db")
             ret=11
+        else
+            echo 1>&2 "First-time upload, don't forget to reverse-sync to get $ts"
+            dosync
         fi
     else
-        hrthis=$(hrmtime "$base/$ts")
-        hrremore=$(hrmtime "$tmp/$ts")
-        echo 1>&2 "Can't accept data: there are local modifications at $ts"
-        echo 1>&2 "src: $hrremore"
-        echo 1>&2 "dst: $hrthis"
-        ret=11 # error in file i/o in man rsync(1)
+        echo 1>&2 "First-time upload, don't forget to reverse-sync to get $ts"
+        dosync
     fi
     rm -rf "$tmp"
     exit $ret
