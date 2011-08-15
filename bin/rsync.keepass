@@ -2,6 +2,8 @@
 # Shell replacement to prevent occasional keepassx database overwriting on
 # sync.  Write to ~/.ssh/authorized_keys the following line:
 #   command="~/bin/rsync.keepass" ssh-dss A...[the-key]...0= rsync@android
+# You may also want to add no-port-forwarding, no-pty, no-user-rc,
+# no-X11-forwarding options to authorized_keys too, see man sshd for details.
 # -- Leonid Evdokimov <leon@darkk.net.ru>
 
 set -o errexit
