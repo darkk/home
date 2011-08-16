@@ -19,7 +19,7 @@ hrmtime() {
 
 dosync() {
     # no local modifications since last sync, push can be accepted
-    if [ ! -a "$db.lock" ]; then
+    if [ ! -e "$db.lock" ]; then
         rsync -a "$tmp"/ "$base"/
     else
         echo 1>&2 "Can't accepted data: $db.lock exists"
