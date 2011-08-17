@@ -11,6 +11,17 @@ getinode() {
     fi
 }
 
+md5_everywhere() {
+    if type -P md5sum >/dev/null; then
+        md5sum < "$1"
+    elif type -P md5 >/dev/null; then
+        md5 < "$1"
+    else
+        echo 1>&2 "$0: no MD5 found."
+        exit 1
+    fi
+}
+
 if [ "$#" = 0 -o "$#" -gt 2 ]; then
     echo "Usage: $0 <path/to/home.git> [\$HOME]" 1>&2
     exit 1
@@ -29,7 +40,8 @@ find . -type f -follow '!' -path './.git/*' '!' -path './.root/*' | while read g
         gitinode=$(getinode "$gitpath")
         if [ "$dstinode" != "$gitinode" ]; then
             echo "Different inodes! Resolve!"
-            ls -li "$dstpath" "$gitpath"
+            echo $(md5_everywhere "$dstpath") $(ls -li "$dstpath")
+            echo $(md5_everywhere "$gitpath") $(ls -li "$gitpath")
         else
             : echo "$gitpath is ok (inode $gitinode)"
         fi
