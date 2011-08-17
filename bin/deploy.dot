@@ -2,6 +2,15 @@
 
 set -o errexit
 
+getinode() {
+    local sys=$(uname -s)
+    if [ "$sys" = Linux ]; then
+        stat --format %i "$1"
+    else
+        stat -f %i "$1"
+    fi
+}
+
 if [ "$#" = 0 -o "$#" -gt 2 ]; then
     echo "Usage: $0 <path/to/home.git> [\$HOME]" 1>&2
     exit 1
@@ -16,8 +25,8 @@ find . -type f -follow '!' -path './.git/*' '!' -path './.root/*' | while read g
         mkdir -p "$dstdir"
     fi
     if [ -a "$dstpath" ]; then
-        dstinode=$(stat -f %i "$dstpath")
-        gitinode=$(stat -f %i "$gitpath")
+        dstinode=$(getinode "$dstpath")
+        gitinode=$(getinode "$gitpath")
         if [ "$dstinode" != "$gitinode" ]; then
             echo "Different inodes! Resolve!"
             ls -li "$dstpath" "$gitpath"
