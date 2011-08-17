@@ -16,8 +16,8 @@ find . -type f -follow '!' -path './.git/*' '!' -path './.root/*' | while read g
         mkdir -p "$dstdir"
     fi
     if [ -a "$dstpath" ]; then
-        dstinode=$(stat --format=%i "$dstpath")
-        gitinode=$(stat --format=%i "$gitpath")
+        dstinode=$(stat -f %i "$dstpath")
+        gitinode=$(stat -f %i "$gitpath")
         if [ "$dstinode" != "$gitinode" ]; then
             echo "Different inodes! Resolve!"
             ls -li "$dstpath" "$gitpath"
