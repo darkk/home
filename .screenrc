@@ -1,0 +1,3 @@
+startup_message off
+caption always "[%H] %{= wbd} %-w%{=bu bw}%n %t%{-}%+w"
+setenv SSH_AUTH_SOCK $HOME/.ssh/ssh_auth_sock
