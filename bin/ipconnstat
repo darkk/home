@@ -1,0 +1,14 @@
+#!/bin/sh
+# Basic statistics for connection tracking. Useful at OpenWRT routers.
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+awk '
+/^udp/ { UDP[$4] += 1; udp += 1 }
+/^tcp/ { TCP[$5] += 1; tcp += 1 }
+END {
+  print "UDP:", udp;
+  for (addr in UDP) print addr, UDP[addr];
+  print "TCP:", tcp;
+  for (addr in TCP) print addr, TCP[addr];
+  print "Other:", NR - udp - tcp;
+  print "Total: " NR;
+}' < /proc/net/ip_conntrack
