@@ -5,4 +5,10 @@
 
 # This file is sourced by bash for login shells.  The following line
 # runs your .bashrc and is recommended by the bash info pages.
-[[ -f ~/.bashrc ]] && . ~/.bashrc
+if [ -n "$BASH_VERSION" ]; then
+    if [ -f ~/.bashrc ]; then
+        . ~/.bashrc
+    fi
+fi
+
+export LANG="en_US.UTF-8"
