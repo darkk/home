@@ -10,10 +10,10 @@ set nocompatible
 " allow backspacing over everything in insert mode
 set backspace=indent,eol,start
 
-"set noexpandtab        " do not replace <Tab> with spaces
-"set tabstop=4          " <Tab> == <Space> x 4
-"set softtabstop=4      " <Tab> == <Space> x 4 (display)
-"set shiftwidth=4       " <Tab> == <Space> x 4 (indent)
+"set tabstop=4          " <Tab> == <Space> x 4 (display of ^I)
+set softtabstop=4      " <Tab> == <Space> x 4 (indent via <Tab>)
+set shiftwidth=4       " <Tab> == <Space> x 4 (indent via shift)
+set expandtab
 set foldmethod=marker foldlevel=32 " foldmarker={,}
 set history=50		" keep 50 lines of command line history
 set ruler		" show the cursor position all the time
@@ -86,12 +86,20 @@ set path+=/usr/include/c++/4.5
 command Diff call s:diff()
 command FileDiff call s:diff(bufname("%"))
 
-autocmd BufNewFile  *  0r !generate <afile>
+" TODO: get better templates
+" autocmd BufNewFile  *  0r !generate <afile>
+
+function! s:generate_c_head()
+    let uuid=matchstr(system("uuidgen | tr -- -a-z _A-Z"), "[^\n\r]*")
+    exec "0s!.*!#ifndef UUID_" . uuid . "#define UUID_" . uuid . "#endif // " . uuid
+endfunction
+
+autocmd BufNewFile *.h,*.hpp,*.hh call s:generate_c_head()
 
 autocmd BufRead,BufNewFile  *.py,*.puw  let python_highlight_all = 1
 autocmd BufRead,BufNewFile  *.py,*.puw  set tabstop=4 softtabstop=4 shiftwidth=4 expandtab
 autocmd BufRead,BufNewFile  *.php       set path+=/usr/lib/php
-autocmd BufRead,BufNewFile  *.c,*.cpp,*.h set foldmarker={,}
+autocmd BufRead,BufNewFile  *.c,*.cc,*.cpp,*.h,*.hpp,*.hh set foldmarker={,}
 " autocmd BufRead,BufNewFile  *.py,*.puw  set fileencoding=utf-8
 
 
