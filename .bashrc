@@ -45,6 +45,9 @@ export PERL_TEST_DIFF="diff -u"
 # without `xim` GTK uses hardcoded Compose sequences
 export GTK_IM_MODULE="xim"
 
+# that makes `ls` colorful on FreeBSD
+export CLICOLOR=1
+
 [[ -d ~/bin ]] && PATH=~/bin:$PATH
 mkpath
 
