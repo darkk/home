@@ -9,7 +9,8 @@ tty=`tty`
 # that's required for screen(1)
 sudo chown "$1": "$tty"
 
-exec sudo -u "$1" -i
+sudo -u "$1" -i
 
-# well, probably, this sudo will fail anyway as soon as tty does not belong to me anymore
-#sudo chown "$USER" "$tty"
+# Well, probably, this sudo will fail anyway as soon as tty does not belong to
+# me anymore. On the other hand, I tested it with `sudo -k` and it works...
+sudo chown "$USER" "$tty"
