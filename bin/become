@@ -4,7 +4,12 @@ set -o errexit
 1>&2 echo "Going to become $1"
 1>&2 id "$1"
 
-# that's required for screen(1)
-sudo chown "$1": `tty`
+tty=`tty`
 
-sudo -u "$1" -i
+# that's required for screen(1)
+sudo chown "$1": "$tty"
+
+exec sudo -u "$1" -i
+
+# well, probably, this sudo will fail anyway as soon as tty does not belong to me anymore
+#sudo chown "$USER" "$tty"
