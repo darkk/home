@@ -1,0 +1,15 @@
+#!/bin/bash
+# Wait for ANY pid to die.
+# License: public domain.
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+# kill -0 is not good solution as it also checks for permission to kill the process.
+while : ; do
+    for pid in "$@"; do
+        if [ ! -d /proc/$pid ]; then
+            echo "$0: Process $pid died." 1>&2
+            exit 0
+        fi
+    done
+    sleep 1
+done
