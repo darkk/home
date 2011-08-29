@@ -3,6 +3,13 @@
 # that can't tolerate any output.  So make sure this doesn't display
 # anything or bad things will happen !
 
+# skel from Red Hat Enterprise Linux Server release 5.4 (Tikanga)
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+    . /etc/bashrc
+fi
+#end of skel
+
 ########################################################################
 # Set up environment
 
@@ -52,6 +59,10 @@ export CLICOLOR=1
 mkpath
 
 unset mkpath dedupe
+
+if [ -f /proc/cpuinfo ]; then
+    export MAKEFLAGS=-j$(grep -c ^processor /proc/cpuinfo)
+fi
 
 
 ########################################################################
