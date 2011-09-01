@@ -58,11 +58,24 @@ export CLICOLOR=1
 [[ -d ~/bin ]] && PATH=~/bin:$PATH
 mkpath
 
-unset mkpath dedupe
+function makeflags() {
+    local ncpu=
 
-if [ -f /proc/cpuinfo ]; then
-    export MAKEFLAGS=-j$(grep -c ^processor /proc/cpuinfo)
-fi
+    if [ -f /proc/cpuinfo ]; then
+        ncpu=$(grep -c ^processor /proc/cpuinfo)
+    else
+        # FreeBSD
+        ncpu=$(sysctl hw.ncpu | head -1 | grep -o '[0-9]*$')
+    fi
+
+    if [ -n "$ncpu" ]; then
+        export MAKEFLAGS=-j$ncpu
+    fi
+}
+
+makeflags
+
+unset mkpath dedupe makeflags
 
 
 ########################################################################
