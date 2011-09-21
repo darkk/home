@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Seems, synaptics is not configured with hal anymore, so here is shortcut for
+# my configuration:
+# 
+## Enable vertical/horizontal scrolling when dragging along the right/bottom edge
+## Enable vertical/horizontal scrolling when dragging with two fingers anywhere on the touchpad
+## Enable taps in corners
+## one-, two-, three-finger tap anywhere besides corners
+## one-, two-, three-finger click. WTF?! I don't know, so let's disable it
+synclient \
+	VertEdgeScroll=1 \
+	HorizEdgeScroll=1 \
+	VertTwoFingerScroll=1 \
+	HorizTwoFingerScroll=1 \
+	LTCornerButton=1 \
+	RTCornerButton=2 \
+	RBCornerButton=3 \
+	TapButton1=1 \
+	TapButton2=1 \
+	TapButton3=1 \
+	ClickFinger1=0 \
+	ClickFinger2=0 \
+	ClickFinger3=0
+## Switch off shared memory used for runtime configuration as it may be considered
+## a security risk, you can enable it and use synclient(1) to get/set options.
+## SHMConfig=False
