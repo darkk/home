@@ -10,19 +10,19 @@ speedup() {
         return 0
     fi
 
-    echo -n "$0: $profile: Before... "
+    echo -n "$0: $profile: "
     local files=()
     while read line; do
         local len=${#files[@]}
         files[$len]="$line"
     done < <(find "$profile" -type f -exec file --print0 '{}' '+' | grep --text -i 'sqlite 3\.' | cut -d '' -f 1)
-    du -hc "${files[@]}" | tail -1
+    local before=$(du -hc "${files[@]}" | tail -1 | sed 's/\t.*$//')
+    echo -n "$before -> "
     for line in "${files[@]}"; do
         sqlite3 "$line" VACUUM
         sqlite3 "$line" REINDEX
     done
-    echo -n "$0: $profile: After... "
-    du -hc "${files[@]}" | tail -1
+    du -hc "${files[@]}" | tail -1 | sed 's/\t.*$//'
 }
 
 speedup ~/.mozilla/firefox
