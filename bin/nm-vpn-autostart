@@ -1,0 +1,104 @@
+#!/bin/bash
+# This script allows you to autostart VPN connection managed by NetworkManager.
+#
+# Place this file into /etc/NetworkManager/dispatcher.d, `chmod +x` it and tune
+# variables to match your network.
+#
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+# UUID of my VPN connection.
+VPN_ID=7f304227-08ab-47bd-9d04-f51145a4f571
+
+# These are UUIDs of my corporate network, I don't need VPN inside of network.
+# I know that "$2" == "vpn-up" for VPN, so there is no strict requirement to
+# list $VPN_ID in $EXCLUDE_IDS.
+# You can get all sort of UUIDs running `nmcli con list`.
+EXCLUDE_IDS=<<EOF
+b8a088d4-7233-483b-974f-4a4cbd9ca530
+762b767e-708b-44e4-a22a-e1686d153f3f
+$VPN_ID
+EOF
+
+# Wait up to `REMOTE_DELAY` seconds, pinging remote host, before starting VPN.
+# Think a bit about your home router reboot: it establishes Wi-Fi network and
+# starts internet connection *after* that, so nm connects to WLAN several
+# seconds before you have real connectivity.
+REMOTE_DELAY=60
+
+set -o errexit
+
+if [ -f /etc/default/nm-vpn-autostart ]; then
+    # You can override EXCLUDE_IDS and VPN_ID there.
+    source /etc/default/nm-vpn-autostart
+fi
+
+get_remote() {
+    # `remote=` is for OpenVPN, `gateway=` is for pptp
+    nmcli -f vpn con list uuid "$1" | grep ^vpn.data: | grep -o '\<\(remote\|gateway\) = [^,]*\(,\|$\)' | cut -d ' ' -f 3 | tr -d ,
+}
+
+wait_remote() {
+    local remote="$1"
+    local timeout="$2"
+    local end=$(( $(date +%s) + $timeout ))
+    while [ $(date +%s) -le "$end" ]; do
+        if ping -c 1 "$remote" &>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+is_up() {
+    local uuid="$1"
+    # FIXME: better status checking would be awesome
+    nmcli con status | grep -q "$uuid"
+}
+
+vpn_powerlift() {
+    local uuid="$1"
+    # A full NetworkManager client (like nm-applet) is used for supplying
+    # secrets not stored at the system level. -- man nmcli
+    # Both UID and environment should match for proper access to nm-applet.
+    # Also, this magic is required if the cert is password-protected, I have
+    # not tried unprotected certs.
+    if [ $(ps -C nm-applet -o pid= | wc -l) -eq 1 ]; then
+        local appletpid=$(ps -C nm-applet -o pid= | tr -cd [0-9])
+        local user=$(ps --pid "$appletpid" -o user=)
+        cat /proc/"$appletpid"/environ | sudo -u "$user" xargs --exit -0 "$0" "$uuid" "powerlift-helper"
+    else
+        1>&2 echo "There are several nm-applet instances! Don't know what to choose."
+        1>&2 ps -C nm-applet -o pid,user,lstart,command
+        return 1
+    fi
+}
+
+if [ "$2" = "up" ]; then
+    tag=$(basename "$0")
+    {
+        for uuid in $EXCLUDE_IDS; do
+            if [ "$CONNECTION_ID" = "$uuid" ]; then
+                exit 0
+            fi
+        done
+
+        if ! is_up "$VPN_ID"; then
+            if [ "$REMOTE_DELAY" -gt 0 ]; then
+                remote=$(get_remote "$VPN_ID")
+                if [ -z "$remote" ]; then
+                    echo "Can't get remote VPN host from NM configuration, sleeping in dumb-mode."
+                    sleep "$REMOTE_DELAY"
+                else
+                    if ! wait_remote "$remote" "$REMOTE_DELAY"; then
+                        echo "Remote host is still down, probably it blocks ping probes."
+                    fi
+                fi
+            fi
+            vpn_powerlift "$VPN_ID"
+        fi
+    } |& logger -i -t "$tag"
+elif [ "$2" = "powerlift-helper" ]; then
+    uuid="$1"
+    shift 2
+    exec env -i "$@" nmcli con up uuid "$uuid"
+fi
