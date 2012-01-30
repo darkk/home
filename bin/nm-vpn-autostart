@@ -13,11 +13,12 @@ VPN_ID=7f304227-08ab-47bd-9d04-f51145a4f571
 # I know that "$2" == "vpn-up" for VPN, so there is no strict requirement to
 # list $VPN_ID in $EXCLUDE_IDS.
 # You can get all sort of UUIDs running `nmcli con list`.
-EXCLUDE_IDS=<<EOF
+EXCLUDE_IDS=$(cat <<EOF
 b8a088d4-7233-483b-974f-4a4cbd9ca530
 762b767e-708b-44e4-a22a-e1686d153f3f
 $VPN_ID
 EOF
+)
 
 # Wait up to `REMOTE_DELAY` seconds, pinging remote host, before starting VPN.
 # Think a bit about your home router reboot: it establishes Wi-Fi network and
@@ -77,7 +78,7 @@ if [ "$2" = "up" ]; then
     tag=$(basename "$0")
     {
         for uuid in $EXCLUDE_IDS; do
-            if [ "$CONNECTION_ID" = "$uuid" ]; then
+            if [ "$CONNECTION_UUID" = "$uuid" ]; then
                 exit 0
             fi
         done
