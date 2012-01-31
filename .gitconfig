@@ -8,5 +8,5 @@
 [commit]
 	template = ~/.config/git/commit.tpl
 [alias]
-	k = log --graph --all --decorate
+	k = log --graph --decorate
 # vim:set tabstop=8 softtabstop=8 shiftwidth=8 noexpandtab:
