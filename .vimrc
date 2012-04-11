@@ -19,6 +19,8 @@ set history=50		" keep 50 lines of command line history
 set ruler		" show the cursor position all the time
 set showcmd		" display incomplete commands
 set incsearch		" do incremental searching
+set smartcase           " search in case-insensetive manner unless it matters
+set ignorecase          " required for `smartcase` to work
 set wildmode=list:longest
 set noequalalways
 set mouse=n             " Normal mode
@@ -85,6 +87,8 @@ set path+=/usr/include/c++/4.5
 
 command Diff call s:diff()
 command FileDiff call s:diff(bufname("%"))
+command Save !wigit save %
+command Rm call delete(expand("%"))
 
 " TODO: get better templates
 " autocmd BufNewFile  *  0r !generate <afile>
@@ -149,6 +153,15 @@ ab #i #include
 ab #d #define
 ab &at; &#64;
 ab sign- Signed-off-by: Leonid Evdokimov <leon@darkk.net.ru>
+
+ab cgit    ((https://git.yandex.ru/csadmins/juggler-client.git/?a=commit;h=... FIXED))
+ab cligit  ((https://git.yandex.ru/csadmins/juggler-client.git/?a=commit;h=... FIXED))
+ab jcligit ((https://git.yandex.ru/csadmins/juggler-client.git/?a=commit;h=... FIXED))
+
+ab jgit    ((https://git.yandex.ru/csadmins/juggler.git/?a=commit;h=... FIXED))
+ab jugit   ((https://git.yandex.ru/csadmins/juggler.git/?a=commit;h=... FIXED))
+ab juggit  ((https://git.yandex.ru/csadmins/juggler.git/?a=commit;h=... FIXED))
+
 
 " Window Title
 source ~/.vim/termtitle.vim

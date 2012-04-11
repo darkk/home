@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
 import sys
+import os
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-import os
 
 FIT = False
+DATETIME = True
 
 if len(sys.argv) < 3:
     print 'Usage: %s [-t title] "x1 x2 x3 ..." "y1 y2 y3 ..." "[z1 z2 z3 ...]"' % sys.argv[0]
@@ -47,6 +49,8 @@ for i in xrange(len(y)):
     print 'k_%d =' % i, k[i]
     print 'c_%d =' % i, c[i]
 
+if DATETIME:
+    x = map(datetime.datetime.fromtimestamp, x)
 for i in xrange(len(y)):
     xslice = x[0:len(y[i])]
     if FIT:

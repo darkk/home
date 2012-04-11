@@ -1,0 +1,16 @@
+#!/bin/bash
+# SSH wrapper to store session logs to files. That MAY be insecure, on the
+# other hand these logs are often quite useful.
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+# set -o xtrace
+set -o errexit
+mkdir -m 700 -p "$HOME/.ssh/log"
+if [ -t 0 -a -t 1 -a -t 2 ]; then
+    if [ $(ps -o sid= $PPID) = $PPID ]; then
+        name=$(echo "$@" | sed s/[^-+=a-zA-Z0-9_]/_/g).$(date +%Y.%m.%d-%H.%M.%S)
+        args=$(printf "%q " "$@")
+        exec /usr/bin/script -a -e -t -c "/usr/bin/ssh $args" "$HOME/.ssh/log/$name.log" 2>"$HOME/.ssh/log/$name.timing"
+    fi
+fi
+exec /usr/bin/ssh "$@"
