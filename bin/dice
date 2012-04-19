@@ -1,0 +1,31 @@
+#!/bin/sh
+#
+# Generates random interger in [0; faces) interval. It's useful to do something
+# like [ $(dice 60 `hostname -f`) -eq $(date +%M) ] && the_task; in crontab to
+# spread the load.
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+dice() {
+    local faces="$1"
+    local seed="$2"
+    : ${seed:=$RANDOM} # dash has $RANDOM
+    : ${seed:=`uuidgen`} # sh from FreeBSD has no $RANDOM but FreeBSD has `uuidgen` in base system
+    if [ -z "$seed" ]; then
+        echo "dice: can't produce seed" 1>&2
+        return 1
+    fi
+    local hash=""
+    if type md5sum >/dev/null 2>&1; then
+        hash=`echo -n "$seed" | md5sum`
+    elif type md5 >/dev/null 2>&1; then
+        hash=`echo -n "$seed" | md5`
+    else
+        echo "dice: can't hash seed" 1>&2
+        return 1
+    fi
+    local hashhead=`expr "$hash" : '\(.......\)'` # 28 bits of garbage
+    local hashint=`printf %d 0x${hashhead}`
+    echo $(( $hashint % $faces ))
+}
+
+dice "$@"
