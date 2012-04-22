@@ -1,0 +1,30 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+	echo "$0: Usage $0 <trackname.gpx|off>" 1>&2
+	exit 1
+fi
+
+if [ ! -c /dev/ttyUSB* ]; then
+	# either none or too many or not char
+	echo "$0: can't find correct /dev/ttyUSB device" 1>&2
+	exit 1
+fi
+
+if [ "$1" != "off" ]; then
+	set -x
+	# -t for tracks
+	exec gpsbabel -D 1 -t -i garmin -f /dev/ttyUSB* -o gpx -F "$1"
+else
+	set -x
+	exec gpsbabel -i garmin,power_off -f /dev/ttyUSB*
+fi
+
+#
+# Track -> route
+#
+#gpsbabel -i gpx -f brevet.gpx -x simplify,count=125 -x transform,rte=trk -o gpx -F brevet.route.gpx
+#
+# Waypoints -> route
+#
+#gpsbabel -i ozi -f nokdim.wpt -x transform,rte=wpt,del -x simplify,count=125  -o gpx -F nokdim.gpx
