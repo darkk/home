@@ -8,6 +8,7 @@ set -o errexit
 mkdir -m 700 -p "$HOME/.ssh/log"
 if [ -t 0 -a -t 1 -a -t 2 ]; then
     if [ $(ps -o sid= $PPID) = $PPID ]; then
+        find "$HOME/.ssh/log" -maxdepth 1 -type f -mtime +45 -delete # keep logs for 45 days
         name=$(echo "$@" | sed s/[^-+=a-zA-Z0-9_]/_/g).$(date +%Y.%m.%d-%H.%M.%S)
         args=$(printf "%q " "$@")
         exec /usr/bin/script -a -e -t -c "/usr/bin/ssh $args" "$HOME/.ssh/log/$name.log" 2>"$HOME/.ssh/log/$name.timing"
