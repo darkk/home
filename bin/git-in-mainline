@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+mainline=${1:-master}
+
+echo 1>&2 "+" git checkout "$mainline"
+git checkout "$mainline" || exit 1
+
+for br in $(git branch -a | grep -v "^\*" | grep -v "/${mainline}$"); do
+    if git branch -a --contains "$br" | grep -q "/${mainline}"; then
+        echo 1>&2 "+" git branch -a --contains "$br"
+        git branch -a --contains "$br"
+    fi
+done
