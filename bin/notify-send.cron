@@ -1,0 +1,32 @@
+#!/bin/bash
+# This script is in public domain.
+# Author:  Leonid Evdokimov <leon@darkk.net.ru>
+
+# Other possible values for session manager name are:
+# SESSION_MANAGER=x-session-manager
+# SESSION_MANAGER=gnome-session
+# SESSION_MANAGER=xfce4-session
+# Look at `ps -A x' for right value for your system.
+SESSION_MANAGER=gnome-session
+
+# default cron in ubutnu 12.04 does not set $USER anymore
+for uidvar in "$USER" "$LOGNAME"; do
+    [ -n "$uidvar" ] && break
+done
+
+function getenv {
+	local pid=$1
+	local ename=$2
+	cat /proc/$pid/environ | sed 's,\x00,\n,g' | grep ^$ename | sed "s,^${ename}=,,"
+}
+
+for pid in $(ps -o user,pid -C $SESSION_MANAGER | awk "\$1 == \"$uidvar\" {print \$2}"); do
+	env \
+		DBUS_SESSION_BUS_ADDRESS=$(getenv $pid DBUS_SESSION_BUS_ADDRESS) \
+		DISPLAY=$(getenv $pid DISPLAY) \
+		XAUTHORITY=$(getenv $pid XAUTHORITY) \
+		notify-send "$@"
+done
+
+# vim:set tabstop=4 softtabstop=4 shiftwidth=4: 
+# vim:set foldmethod=marker foldlevel=32 foldmarker={,}: 
