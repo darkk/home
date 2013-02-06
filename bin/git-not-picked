@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -o errexit
+
+branch=${1:-$(git rev-parse --abbrev-ref HEAD)}
+mainline=${2:-master}
+common_root=$(git merge-base $branch $mainline)
+
+# No one commits two commit within same second. Not the best assumption, but
+# good enough for me.
+# Let's extract commits from ${branch} that are not in ${mainline}
+regexp=""
+while read diff_garbage unmerged; do
+    regexp="${regexp}|$unmerged"
+done < <( \
+    diff \
+        <(git log --pretty=tformat:"%at.%ae" "${common_root}^..${branch}" | sort | uniq) \
+        <(git log --pretty=tformat:"%at.%ae" "${common_root}^..${mainline}" | sort | uniq) \
+    | grep "^< " \
+)
+
+for commit in $(git log --pretty=tformat:"%at.%ae %H" "${common_root}^..${branch}" | grep -E "^(${regexp}) " | cut -d " " -f 2); do
+    git log --decorate -1 "$commit"
+done
