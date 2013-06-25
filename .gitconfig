@@ -9,4 +9,17 @@
 	template = ~/.config/git/commit.tpl
 [alias]
 	k = log --graph --decorate
+	lg = log --all --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+	ff = pull --ff-only
+	up = remote update
+	pick = cherry-pick -x --signoff
+	autorebase = !git rebase --interactive origin/$(git rev-parse --abbrev-ref HEAD) --autosquash
+	flow-clean = !set -x; git branch -d -vv $(git branch --merged | grep -E '^  (feature|hotfix|release|support)/')
+[wigit]
+	reset-on-pull = true
+[svn]
+	rmdir = true
+#[diff "txt"]
+#	wordRegex = "[^\\-#*_=\"':;,.?!\\(\\)\\[\\]\\{\\}[:space:]]+"
+
 # vim:set tabstop=8 softtabstop=8 shiftwidth=8 noexpandtab:
