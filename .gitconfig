@@ -14,7 +14,7 @@
 	up = remote update
 	pick = cherry-pick -x --signoff
 	autorebase = !git rebase --interactive origin/$(git rev-parse --abbrev-ref HEAD) --autosquash
-	flow-clean = !set -x; git branch -d -vv $(git branch --merged | grep -E '^  (feature|hotfix|release|support)/')
+	flow-clean = !set -x && git branch -d -vv $(git branch --merged | grep -E '^  (feature|hotfix|release|support)/')
 [wigit]
 	reset-on-pull = true
 [svn]
