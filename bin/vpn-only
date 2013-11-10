@@ -1,0 +1,19 @@
+#!/bin/sh -ex
+# This script does prevent leak of cookies from browser.
+# It does not prevent DNS leak, attack against NTP and alike issues.
+
+ipt() {
+    sudo iptables "$@"
+}
+
+if [ "$1" != reset ]; then
+    ipt -N STRICT_VPN
+    ipt -A STRICT_VPN --out-interface lo -j ACCEPT
+    ipt -A STRICT_VPN --out-interface tap+ -j ACCEPT
+    ipt -A STRICT_VPN -j DROP
+    ipt -I OUTPUT -m owner --uid-owner "$USER" -j STRICT_VPN
+else
+    ipt -D OUTPUT -m owner --uid-owner "$USER" -j STRICT_VPN
+    ipt -F STRICT_VPN
+    ipt -X STRICT_VPN
+fi
