@@ -1,0 +1,114 @@
+#!/usr/bin/env python
+#
+# Merges several logs into one in chronological order guessing proper time format.
+# I've not found logmerge tool to merge syslog, apache2 access.log and error.log together.
+#
+# TODO: output filename / lineno from input stream
+# TODO: prepend date to the line
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+import sys
+import re
+import time
+import heapq
+
+dow = 'Sun|Mon|Tue|Wed|Thu|Fri|Sat'
+mon = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec'
+mon2ndx = dict((y, x) for x, y in enumerate(mon.split('|'), 1))
+
+re_mons   = r'(?P<mon>%s)' % mon
+re_mond  = r'(?P<mon>\d{2})'
+re_mday1 = r' ?(?P<mday>\d{1,2})'
+re_mday2 = r'(?P<mday>\d{2})'
+re_year = r'(?P<year>\d{4})'
+re_hms  = r'(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})'
+re_dow  = r'(?:%s)' % dow
+
+regex_list = [
+    # apache access.log
+    r'\[%(re_mday2)s/%(re_mons)s/%(re_year)s:%(re_hms)s \+[0-9]{4}\]', # +1234 - tz data
+    # apache error.log
+    '%(re_dow)s %(re_mons)s %(re_mday1)s %(re_hms)s %(re_year)s[^0-9]',
+    # syslog
+    '^%(re_mons)s %(re_mday1)s %(re_hms)s ',
+    # `date` output
+    '^%(re_dow)s %(re_mons)s %(re_mday1)s %(re_hms)s [A-Z]+ %(re_year)s[^0-9]', # MSK - tz data
+    # python/logging asctime
+    '%(re_year)s-%(re_mond)s-%(re_mday2)s %(re_hms)s,'
+]
+regex_list = [re.compile(_ % locals()) for _ in regex_list]
+
+localnow = time.localtime()
+
+def line2ts(line, regex=None):
+    if regex is None:
+        for regex in regex_list:
+            m = regex.search(line)
+            if m is not None:
+                break
+    else:
+        m = regex.search(line)
+        if m is None:
+            for regex in regex_list:
+                m = regex.search(line)
+                if m is not None:
+                    break
+    if m is not None:
+        date = m.groupdict()
+        if date['mon'] in mon2ndx:
+            date['mon'] = mon2ndx[date['mon']]
+        else:
+            date['mon'] = int(date['mon'])
+        for _ in ('mday', 'hour', 'min', 'sec'):
+            date[_] = int(date[_])
+        if 'year' not in date:
+            datetpl = date['mon'], date['mday'], date['hour'], date['min'], date['sec']
+            # datetpl new-year now
+            # newyear datetpl now
+            if datetpl < localnow[1:]:
+                datetpl = (localnow[0], ) + datetpl
+            else:
+                datetpl = (localnow[0] - 1, ) + datetpl
+        else:
+            datetpl = int(date['year']), date['mon'], date['mday'], date['hour'], date['min'], date['sec']
+        return datetpl, regex
+    else:
+        return None, None
+
+def dated_iter(fname):
+    with open(fname) as fd:
+        ts1, regex = None, None
+        for no, line in enumerate(fd):
+            ts2, regex = line2ts(line, regex)
+            if ts2 is not None:
+                if ts1 is not None and ts1 > ts2:
+                    # I have no idea how heapq.merge handles it
+                    print >> sys.stderr, "TIME-GOES-BACK %s:%d %s" % (fname, no, repr(line))
+                ts1 = ts2
+                yield ts1, line
+            else:
+                print >> sys.stderr, "BAD-DATE %s:%d %s" % (fname, no, repr(line))
+
+def main():
+    iters = tuple(dated_iter(fname) for fname in sys.argv[1:])
+    for ts, line in heapq.merge(*iters):
+        sys.stdout.write(line)
+
+def test():
+    lines = """77.88.88.77 - - [29/Oct/2012:15:43:39 +0400] "POST /api/events/submit.sbml?object=statworkers&eventtype=unispace&monitor=juggler.yandex.net&status=warning&json=true HTTP/1.0" 500 1026 "-" "Golem queue processor/1.0" "-"
+[20/Nov/2013:00:55:04 +0400] golem.yandex-team.ru 93.158.112.5 "GET / HTTP/1.1" 200 "-" "Golem/3.0" "-" 0.068 0.078 116 [-] -
+Wed Nov 20 00:54:41 2013 [/api/events/submit.sbml] no current event [graphite] for ppc.yandex.ru (from 5.45.50.17)
+Mon Oct 29 15:43:39 2012: Error executing /api/events/submit.sbml: can not get db writer on backup-write installation
+Nov 20 00:53:29 golem.yandex.net kernel: [4253401.845652] mdadm: sending ioctl 1261 to a partition!
+Wed Nov 20 00:48:00 MSK 2013 jupon-sync.cronjob[69142]: /usr/local/libexec/pongerd/jupon-sync.cronjob
+2013-11-20 00:53:59,893 -- [37199:MainThread:865889616] [  Info   ] *** Starting session ***""".splitlines()
+    for l in lines:
+        ts1, regex = line2ts(l)
+        print ts1, l
+        for regex_other in regex_list:
+            ts2, regex2 = line2ts(l, regex_other)
+            assert ts2 == ts1 and regex2 == regex
+
+if __name__ == '__main__':
+    main()
+    #test()
