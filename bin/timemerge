@@ -34,7 +34,9 @@ regex_list = [
     # `date` output
     '^%(re_dow)s %(re_mons)s %(re_mday1)s %(re_hms)s [A-Z]+ %(re_year)s[^0-9]', # MSK - tz data
     # python/logging asctime
-    '%(re_year)s-%(re_mond)s-%(re_mday2)s %(re_hms)s,'
+    '%(re_year)s-%(re_mond)s-%(re_mday2)s %(re_hms)s,',
+    # adb logcat -v threadtime
+    r'^%(re_mond)s-%(re_mday2)s %(re_hms)s\.[0-9]{3}',
 ]
 regex_list = [re.compile(_ % locals()) for _ in regex_list]
 
@@ -98,17 +100,18 @@ def test():
     lines = """77.88.88.77 - - [29/Oct/2012:15:43:39 +0400] "POST /api/events/submit.sbml?object=statworkers&eventtype=unispace&monitor=juggler.yandex.net&status=warning&json=true HTTP/1.0" 500 1026 "-" "Golem queue processor/1.0" "-"
 [20/Nov/2013:00:55:04 +0400] golem.yandex-team.ru 93.158.112.5 "GET / HTTP/1.1" 200 "-" "Golem/3.0" "-" 0.068 0.078 116 [-] -
 Wed Nov 20 00:54:41 2013 [/api/events/submit.sbml] no current event [graphite] for ppc.yandex.ru (from 5.45.50.17)
+11-23 15:21:27.080 21453 21453 D dalvikvm: GC_EXPLICIT freed 317K, 52% free 3707K/7588K, paused 9ms+4ms, total 72ms
 Mon Oct 29 15:43:39 2012: Error executing /api/events/submit.sbml: can not get db writer on backup-write installation
 Nov 20 00:53:29 golem.yandex.net kernel: [4253401.845652] mdadm: sending ioctl 1261 to a partition!
 Wed Nov 20 00:48:00 MSK 2013 jupon-sync.cronjob[69142]: /usr/local/libexec/pongerd/jupon-sync.cronjob
 2013-11-20 00:53:59,893 -- [37199:MainThread:865889616] [  Info   ] *** Starting session ***""".splitlines()
     for l in lines:
         ts1, regex = line2ts(l)
-        print ts1, l
+        assert ts1 is not None, 'Bad line: ' + repr(l)
         for regex_other in regex_list:
             ts2, regex2 = line2ts(l, regex_other)
             assert ts2 == ts1 and regex2 == regex
 
 if __name__ == '__main__':
-    main()
     #test()
+    main()
