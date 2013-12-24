@@ -60,8 +60,6 @@ vpn_powerlift() {
     local uuid="$1"
 }
 
-
-
 on_up() {
     local uuid
     local remote
@@ -80,7 +78,7 @@ on_up() {
     if [ $(ps -C nm-applet -o pid= | wc -l) -eq 1 ]; then
         local appletpid=$(ps -C nm-applet -o pid= | tr -cd [0-9])
         local user=$(ps --pid "$appletpid" -o user=)
-        # Ubuntu 13.10 requires session cgroup mathing.
+        # Ubuntu 13.10 requires session cgroup matching.
         local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
         find /sys/fs/cgroup/* -xdev -name tasks -print0 | \
             xargs -0 grep --files-with-matches --line-regexp "^${appletpid}$" | \
