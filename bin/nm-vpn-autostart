@@ -35,7 +35,7 @@ fi
 
 get_remote() {
     # `remote=` is for OpenVPN, `gateway=` is for pptp
-    nmcli -f vpn con list uuid "$1" | grep ^vpn.data: | grep -o '\<\(remote\|gateway\) = [^,]*\(,\|$\)' | cut -d ' ' -f 3 | tr -d ,
+    nmcli -f vpn con list uuid "$1" | grep ^vpn.data: | sed 's/^vpn.data://; s/, /\n/g; s/^ *//g' | grep '^\(remote\|gateway\) = ' | cut -d ' ' -f 3
 }
 
 wait_remote() {
@@ -58,48 +58,75 @@ is_up() {
 
 vpn_powerlift() {
     local uuid="$1"
+}
+
+
+
+on_up() {
+    local uuid
+    local remote
+
+    for uuid in $EXCLUDE_IDS; do
+        if [ "$CONNECTION_UUID" = "$uuid" ]; then
+            exit 0
+        fi
+    done
+
     # A full NetworkManager client (like nm-applet) is used for supplying
     # secrets not stored at the system level. -- man nmcli
     # Both UID and environment should match for proper access to nm-applet.
-    # Also, this magic is required if the cert is password-protected, I have
-    # not tried unprotected certs.
+    # Also, this magic is required if the openvpn cert is password-protected, I
+    # have not tried unprotected certs.
     if [ $(ps -C nm-applet -o pid= | wc -l) -eq 1 ]; then
         local appletpid=$(ps -C nm-applet -o pid= | tr -cd [0-9])
         local user=$(ps --pid "$appletpid" -o user=)
-        cat /proc/"$appletpid"/environ | sudo -u "$user" xargs --exit -0 "$0" "$uuid" "powerlift-helper"
+        # Ubuntu 13.10 requires session cgroup mathing.
+        local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
+        find /sys/fs/cgroup/* -xdev -name tasks -print0 | \
+            xargs -0 grep --files-with-matches --line-regexp "^${appletpid}$" | \
+            while read fname; do echo "$future_pid" >"$fname"; done
+        exec sudo -u "$user" xargs --exit -0 "$0" "__powerlift__" </proc/"$appletpid"/environ
     else
-        1>&2 echo "There are several nm-applet instances! Don't know what to choose."
-        1>&2 ps -C nm-applet -o pid,user,lstart,command
-        return 1
+        echo "There are several nm-applet instances! Don't know what to choose."
+        ps -C nm-applet -o pid,user,lstart,command
+    fi
+    exit 1
+}
+
+on_powerlift() {
+    shift 1
+    exec env -i "$@" "$0" __as_user__
+}
+
+on_user() {
+    if ! is_up "$VPN_ID"; then
+        if [ "$REMOTE_DELAY" -gt 0 ]; then
+            remote=$(get_remote "$VPN_ID")
+            if [ -z "$remote" ]; then
+                echo "Can't get remote VPN host from NM configuration, sleeping in dumb-mode."
+                sleep "$REMOTE_DELAY"
+            else
+                if ! wait_remote "$remote" "$REMOTE_DELAY"; then
+                    echo "Remote host is still down, probably it blocks ping probes."
+                fi
+            fi
+        fi
+
+        nmcli con up uuid "$VPN_ID"
     fi
 }
 
-if [ "$2" = "up" ]; then
-    tag=$(basename "$0")
-    {
-        for uuid in $EXCLUDE_IDS; do
-            if [ "$CONNECTION_UUID" = "$uuid" ]; then
-                exit 0
-            fi
-        done
-
-        if ! is_up "$VPN_ID"; then
-            if [ "$REMOTE_DELAY" -gt 0 ]; then
-                remote=$(get_remote "$VPN_ID")
-                if [ -z "$remote" ]; then
-                    echo "Can't get remote VPN host from NM configuration, sleeping in dumb-mode."
-                    sleep "$REMOTE_DELAY"
-                else
-                    if ! wait_remote "$remote" "$REMOTE_DELAY"; then
-                        echo "Remote host is still down, probably it blocks ping probes."
-                    fi
-                fi
-            fi
-            vpn_powerlift "$VPN_ID"
-        fi
-    } |& logger -i -t "$tag"
-elif [ "$2" = "powerlift-helper" ]; then
-    uuid="$1"
-    shift 2
-    exec env -i "$@" nmcli con up uuid "$uuid"
-fi
+tag=$(basename "$0")
+{
+    if [ "$2" = "up" ]; then
+        #set -o xtrace
+        on_up
+    elif [ "$1" = "__powerlift__" ]; then
+        on_powerlift "$@"
+    elif [ "$1" = "__as_user__" ]; then
+        echo -n "$0"; printf " %q" "$@"; echo
+        #set -o xtrace
+        #id; env; cat /proc/self/cgroup
+        on_user
+    fi
+} |& logger -i -t "$tag"
