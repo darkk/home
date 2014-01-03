@@ -1,0 +1,6 @@
+#!/bin/sh
+# cleanup /boot partition deleting stale kernels
+set -o xtrace
+uname -a
+ls /boot
+sudo apt-get remove `dpkg --get-selections | sort | awk '($1 ~ /^linux-image-[0-9]/ && $2 == "install") {print $1}' | sed '$d'`
