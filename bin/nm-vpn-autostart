@@ -76,7 +76,7 @@ on_up() {
     # Also, this magic is required if the openvpn cert is password-protected, I
     # have not tried unprotected certs.
     if [ $(ps -C nm-applet -o pid= | wc -l) -eq 1 ]; then
-        local appletpid=$(ps -C nm-applet -o pid= | tr -cd [0-9])
+        local appletpid=$(ps -C nm-applet -o pid= | tr -cd '[0-9]')
         local user=$(ps --pid "$appletpid" -o user=)
         # Ubuntu 13.10 requires session cgroup matching.
         local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
