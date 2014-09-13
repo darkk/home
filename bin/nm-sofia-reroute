@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# This script allows to enforce local-ip-address for SIP connections in
+# telepathy to match network routing bypassing complex address selection in
+# sofia-sip library.
+#
+# It may be useful if...
+# - your host is multihomed with broken source-based routing.
+#   That's quite common in case of nm-openvpn
+# - your VPN connection provides `global` scope IP, but only subset of network
+#   addresses is routed via VPN and rpath filter is in action
+#
+# Place this file into /etc/NetworkManager/dispatcher.d and `chmod +x` it.
+#
+# See also following discussions:
+# - https://bugs.launchpad.net/ubuntu/+source/empathy/+bug/719632
+# - https://bugs.launchpad.net/ubuntu/+source/empathy/+bug/1058365
+# - https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=714262
+#
+# sofia-sip selects source IP address in `su_getlocalinfo` function calling
+# `li_sort` function that prefers `global` addresses over `local`.
+# - https://gitorious.org/sofia-sip/sofia-sip/source/master:libsofia-sip-ua/su/su_localinfo.c#L194
+# - https://gitorious.org/sofia-sip/sofia-sip/source/master:libsofia-sip-ua/su/su_localinfo.c#L1640
+#
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+on_change() {
+    # A full NetworkManager client (like nm-applet) is used to detect proper
+    # environment for DBus access. mc-tool needs DBus :)
+    if [ $(ps -C nm-applet -o pid= | wc -l) -eq 1 ]; then
+        local appletpid=$(ps -C nm-applet -o pid= | tr -cd '[0-9]')
+        local user=$(ps --pid "$appletpid" -o user=)
+        # Ubuntu 13.10 requires session cgroup matching.
+        local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
+        find /sys/fs/cgroup/* -xdev -name tasks -print0 | \
+            xargs -0 grep --files-with-matches --line-regexp "^${appletpid}$" | \
+            while read fname; do echo "$future_pid" >"$fname"; done
+        exec sudo -u "$user" xargs --exit -0 "$0" "__powerlift__" </proc/"$appletpid"/environ
+    else
+        echo "There are several nm-applet instances! Don't know what to choose."
+        ps -C nm-applet -o pid,user,lstart,command
+    fi
+    exit 1
+}
+
+on_powerlift() {
+    shift 1
+    exec env -i "$@" "$0" __as_user__
+}
+
+on_user() {
+    for sip in $(mc-tool list | grep ^sofiasip/sip/); do
+        dest_addr=$(
+            for dest in $(mc-tool show "$sip" | awk '
+                /\(string\) account/
+                /\(string\) proxy-host/
+                ' | sed 's/.*[^0-9a-zA-Z\.:]\([0-9a-zA-Z\.:]*\)$/\1/' | sort -u)
+            do
+                dig +short -t A "$dest"
+                dig +short -t AAAA "$dest"
+                echo "$dest"
+            done | sort -u)
+        src_addr=$(
+            for addr in $dest_addr; do
+                ip -o -4 route get "$addr" 2>/dev/null
+                ip -o -6 route get "$addr" 2>/dev/null
+            done | awk '($1 ~ /^[0-9a-fA-F.:]*$/) {
+            for (i = 1; i < NF; ++i) {
+                if ($(i) == "src") {
+                    print $(i+1);
+                    break;
+                }
+            }}' | sort -u)
+        if [ $(echo "$src_addr" | wc -w) -eq 1 ]; then
+            args="string:local-ip-address=$src_addr"
+        else
+            args="clear:local-ip-address"
+        fi
+        (
+        set -o xtrace;
+        mc-tool update "$sip" "$args"
+        )
+    done
+}
+
+tag=$(basename "$0")
+{
+    if [ "$1" = "__powerlift__" ]; then
+        set -o errexit
+        on_powerlift "$@"
+    elif [ "$1" = "__as_user__" ]; then
+        on_user
+    else
+        set -o errexit
+        on_change
+    fi
+} |& logger -i -t "$tag"
