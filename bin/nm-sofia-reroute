@@ -58,33 +58,46 @@ on_user() {
             do
                 dig +short -t A "$dest"
                 dig +short -t AAAA "$dest"
-                echo "$dest"
+                echo "$dest" # if that's IP address and not DNS name
             done | sort -u)
         src_addr=$(
-            for addr in $dest_addr; do
-                ip -o -4 route get "$addr" 2>/dev/null
-                ip -o -6 route get "$addr" 2>/dev/null
-            done | awk '($1 ~ /^[0-9a-fA-F.:]*$/) {
-            for (i = 1; i < NF; ++i) {
-                if ($(i) == "src") {
-                    print $(i+1);
-                    break;
-                }
-            }}' | sort -u)
-        if [ $(echo "$src_addr" | wc -w) -eq 1 ]; then
+            for proto in 6 4; do
+                for addr in $dest_addr; do
+                    ip -o "-${proto}" route get "$addr" 2>/dev/null
+                done | awk '($1 ~ /^[0-9a-fA-F.:]*$/) {
+                    for (i = 1; i < NF; ++i) {
+                        if ($(i) == "src") {
+                            if ($1 ~ /:/) {
+                                printf("[%s]\n", $(i+1)); # IPv6
+                            } else {
+                                printf("%s\n", $(i+1)); # IPv4
+                            }
+                            break;
+                        }
+                    }}' | sort -u
+            done)
+
+        src_count=$(echo "$src_addr" | wc -w)
+        if [ "$src_count" -ge 1 ]; then
+            if [ "$src_count" -gt 1 ]; then
+                echo "${sip} is reachable via several addrs, using the 1st:" $src_addr
+                src_addr=$(echo "$src_addr" | head -n 1)
+            fi
             args="string:local-ip-address=$src_addr"
         else
             args="clear:local-ip-address"
         fi
         (
-        set -o xtrace;
-        mc-tool update "$sip" "$args"
+        if ( set -o xtrace; mc-tool update "$sip" "$args" ) | tee /dev/stderr | grep -q 'mc-tool reconnect'; then
+            ( set -o xtrace; mc-tool reconnect "$sip" )
+        fi
         )
     done
 }
 
 tag=$(basename "$0")
 {
+    # NetworkManager -> on_change -> on_powerlift -> on_user
     if [ "$1" = "__powerlift__" ]; then
         set -o errexit
         on_powerlift "$@"
