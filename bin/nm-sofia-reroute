@@ -24,6 +24,8 @@
 #
 # -- Leonid Evdokimov <leon@darkk.net.ru>
 
+argv0=$(basename "$0")
+
 on_change() {
     # A full NetworkManager client (like nm-applet) is used to detect proper
     # environment for DBus access. mc-tool needs DBus :)
@@ -49,6 +51,12 @@ on_powerlift() {
 }
 
 on_user() {
+    local cmd
+    cmd=$(printf "%q __as_user_locked__" "$0")
+    exec flock --timeout 15 --exclusive "/run/lock/${argv0}.$(id -u)" -c "$cmd"
+}
+
+on_user_locked() {
     for sip in $(mc-tool list | grep ^sofiasip/sip/); do
         dest_addr=$(
             for dest in $(mc-tool show "$sip" | awk '
@@ -95,16 +103,17 @@ on_user() {
     done
 }
 
-tag=$(basename "$0")
 {
-    # NetworkManager -> on_change -> on_powerlift -> on_user
+    # NetworkManager -> on_change -> on_powerlift -> on_user -> on_user_locked
     if [ "$1" = "__powerlift__" ]; then
         set -o errexit
         on_powerlift "$@"
     elif [ "$1" = "__as_user__" ]; then
         on_user
+    elif [ "$1" = "__as_user_locked__" ]; then
+        on_user_locked
     else
         set -o errexit
         on_change
     fi
-} |& logger -i -t "$tag"
+} |& logger -i -t "$argv0"
