@@ -88,18 +88,17 @@ on_user_locked() {
         src_count=$(echo "$src_addr" | wc -w)
         if [ "$src_count" -ge 1 ]; then
             if [ "$src_count" -gt 1 ]; then
-                echo "${sip} is reachable via several addrs, using the 1st:" $src_addr
+                src_msg=$(echo -n "$src_addr" | tr '\n' ' ')
+                echo "${sip} is reachable via several addrs, using the 1st: ${src_msg}"
                 src_addr=$(echo "$src_addr" | head -n 1)
             fi
             args="string:local-ip-address=$src_addr"
         else
             args="clear:local-ip-address"
         fi
-        (
         if ( set -o xtrace; mc-tool update "$sip" "$args" ) | tee /dev/stderr | grep -q 'mc-tool reconnect'; then
             ( set -o xtrace; mc-tool reconnect "$sip" )
         fi
-        )
     done
 }
 
