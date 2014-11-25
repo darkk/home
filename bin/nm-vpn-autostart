@@ -78,12 +78,19 @@ on_up() {
     if [ $(ps -C nm-applet -o pid= | wc -l) -eq 1 ]; then
         local appletpid=$(ps -C nm-applet -o pid= | tr -cd '[0-9]')
         local user=$(ps --pid "$appletpid" -o user=)
-        # Ubuntu 13.10 requires session cgroup matching.
-        local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
-        find /sys/fs/cgroup/* -xdev -name tasks -print0 | \
-            xargs -0 grep --files-with-matches --line-regexp "^${appletpid}$" | \
-            while read fname; do echo "$future_pid" >"$fname"; done
-        exec sudo -u "$user" xargs --exit -0 "$0" "__powerlift__" </proc/"$appletpid"/environ
+        local user_shell=$(awk -F: '($1 == "'"$user"'") { print $7 }' </etc/passwd)
+        # shell is checked to avoid nm-applet launched by `lightdm`
+        if grep -q --fixed-strings --line-regexp "$user_shell" /etc/shells; then
+            # Ubuntu 13.10 requires session cgroup matching.
+            local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
+            find /sys/fs/cgroup/* -xdev -name tasks -print0 | \
+                xargs -0 grep --files-with-matches --line-regexp "^${appletpid}$" | \
+                while read fname; do echo "$future_pid" >"$fname"; done
+            exec sudo -u "$user" xargs --exit -0 "$0" "__powerlift__" </proc/"$appletpid"/environ
+        else
+            echo "Invalid shell ${user_shell} for user ${user}."
+            exit 1
+        fi
     else
         echo "There are several nm-applet instances! Don't know what to choose."
         ps -C nm-applet -o pid,user,lstart,command
