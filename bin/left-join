@@ -1,0 +1,8 @@
+#!/bin/bash
+
+left_tbl=${1?:1st LEFT table}
+right_tbl=${2?:2nd RIGHT table}
+filler=${3:-NULL}
+
+export LC_ALL=C
+join -a 1 -o auto -e "$filler" -j 1 -t '	' <(sort "$left_tbl") <(sort "$right_tbl")
