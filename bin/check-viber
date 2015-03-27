@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Sometimes Viber deadlocks leaving the process alive without any windows. It's
+# quite annoying as `program has crashed` apport message is not displayed in
+# this case. Here is cron watchdog to workaroung the issue.
+#
+# Add something something like this to user's crontab:
+#
+#   1-59/5 * * * * env.session check-viber
+#
+# This script is in public domain.
+# Author:  Leonid Evdokimov <leon@darkk.net.ru>
+
+if ! xwininfo -name ViberPC >/dev/null 2>&1 && pgrep --exact Viber >/dev/null; then
+    notify-send.cron --urgency=low -i process-stop "Viber is stuck"
+fi
