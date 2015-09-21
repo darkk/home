@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+#
+# Script to parse Delivery Status Notifications (DSNs) from maildir and dump
+# information in tab-separated format.
+#
+# -- Leonid Evdokimov <leon@darkk.net.ru>
+
+import sys
+import email
+import pprint
+import re
+import json
+
+def is_dsn(em):
+    # http://tools.ietf.org/html/rfc3464#section-2
+    return (em.is_multipart() and
+            em.get_content_type() == 'multipart/report' and
+            len(em.get_payload()) > 1 and
+            em.get_payload(1).get_content_type() == 'message/delivery-status')
+
+def parse_dsn(em):
+    dsn = em.get_payload(1)
+    fields = sum([x.items() for x in dsn.get_payload()], [])
+    normalize = {
+        'arrival-date': lambda x: email.utils.mktime_tz(email.utils.parsedate_tz(x)),
+        'original-recipient': lambda x: x.split(';', 1)[1].strip(), # rfc822 everywhere
+        'final-recipient': lambda x: x.split(';', 1)[1].strip(), # rfc822
+        'received-from-mta': lambda x: x.split(';', 1)[1].strip(), # dns everywhere
+        'reporting-mta': lambda x: x.split(';', 1)[1].strip(), # dns everywhere
+        'diagnostic-code': lambda x: re.sub('\n +', ' ', x), # readable multiline
+    }
+    fields_ = {}
+    for k, v in fields:
+        normer = normalize.get(k.lower(), lambda x: x)
+        k = k.lower()
+        v = normer(v)
+        if k not in fields_:
+            fields_[k] = v
+        else:
+            fields_[k] += ' ' + v
+    fields = fields_
+    return (
+        fields.pop('arrival-date', None),
+        fields.pop('action', None),
+        fields.pop('status', None),
+        fields.pop('final-recipient', None),
+        # fields.pop('original-recipient', None),
+        json.dumps(fields, sort_keys=True))
+
+
+def main():
+    filenames = sys.argv[1:]
+    for fname in filenames:
+        with open(fname) as fd:
+            em = email.message_from_string(fd.read())
+            if is_dsn(em):
+                print fname + '\t' + '\t'.join(map(str, parse_dsn(em)))
+
+if __name__ == '__main__':
+    main()
