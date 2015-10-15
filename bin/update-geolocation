@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# This script is run by cron(8) to update geolocation cache and feed it to
+# redshift(1) in case of significant location change.
+#
+# Add something something like this to user's crontab:
+#
+#   28-59/30 * * * * env.session update-geolocation
+#
+# It should be run within user session to be able to run `redstart redshift'.
+#
+# It allows redshift(1) offline startup and avoids geoclue-related crashes.
+# https://github.com/jonls/redshift/issues/80
+#
+# This script is in public domain. -- Leonid Evdokimov <leon@darkk.net.ru>
+#
+
+tmp=`mktemp ~/.cache/geolocate/last.XXXXXX`
+~/bin/geolocate >"$tmp" 2>~/.cache/geolocate/stderr && mv "$tmp" ~/.cache/geolocate/last
+rm -f "$tmp"
+
+for pid in $(pidof redshift); do
+    distance=$({
+        cat ~/.cache/geolocate/last
+        tr '\0' ':' </proc/$pid/cmdline
+        echo
+    } | awk -F: '
+        ($2 == "-l") {xlat = $3; xlon = $4}
+        (NF == 2) {ylat = $1; ylon = $2}
+        END { dlat = xlat - ylat; dlon = xlon - ylon; print int(sqrt(dlat*dlat + dlon*dlon)) }')
+    # FIXME: I should rather use https://en.wikipedia.org/wiki/Haversine_formula
+    if [ "$distance" -ge 1 ]; then
+        restart redshift >/dev/null
+        break
+    fi
+done

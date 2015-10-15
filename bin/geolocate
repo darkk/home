@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+#
+# This script grabs nearby WiFi access points MAC addresses and queries
+# geolocation API.
+#
+# There is no Yandex support at `apt-cache search geoclue-provider' and it's
+# guite good source of geolocation information for Russia.
+#
+# This script is in public domain. -- Leonid Evdokimov <leon@darkk.net.ru>
+#
+
+import contextlib
+import json
+import operator
+import os
+import re
+import shelve
+import subprocess
+import sys
+import syslog
+import time
+import urllib
+import urllib2
+
+# API key from https://tech.yandex.ru/maps/keys/get/ for whereami.darkk.net.ru
+YANDEX_API_KEY = 'AMAxD1QBAAAA2_kZWAQAEzOLQdDqD3XqQVJuYxglyuCVxUUAAAAAAAAAAAA6HbuZ7v1AK83G4DghuWTP8VvpHg=='
+
+def urlopen_or_none(*args, **kwargs):
+    try:
+        return urllib2.urlopen(*args, **kwargs).read()
+    except urllib2.HTTPError, err:
+        print >>sys.stderr, err
+        print >>sys.stderr, err.read()
+        return None
+    except Exception, err:
+        print >>sys.stderr, err
+        return None
+
+def yandex(mac_list):
+    # 11 MAC addresses is yandex geolocation API non-documented limitation
+    # -- http://api.yandex.ru/locator/doc/dg/api/geolocation-api_json.xml#id04ECCB63
+    assert len(mac_list) <= 11
+    req = {
+        'common': {'version': '1.0', 'api_key': YANDEX_API_KEY},
+        # I know nothing about `age` and `signal_strength`
+        'wifi_networks': [ {'mac': mac} for mac in mac_list ],
+    }
+    data = json.dumps(req)
+    response = urlopen_or_none('https://api.lbs.yandex.net/geolocation',
+            urllib.urlencode((('json', data),)),
+            timeout=5)
+    try:
+        response = json.loads(response)
+        response = response['position']
+    except Exception:
+        print >>sys.stderr, repr(response)
+        raise
+    return (response['latitude'], response['longitude'], response['precision'])
+
+def mozilla(mac_list):
+    req = {
+        'wifiAccessPoints': [
+            {'macAddress': mac} for mac in mac_list
+        ]
+    }
+    data = json.dumps(req)
+    response = urlopen_or_none('https://location.services.mozilla.com/v1/geolocate?key=test', data, timeout=5)
+    try:
+        response = json.loads(response)
+    except Exception:
+        print >>sys.stderr, repr(response)
+        raise
+    return (response['location']['lat'], response['location']['lng'], response['accuracy'])
+
+def nm_mac():
+    # SSID BSSID MODE FREQ RATE SIGNAL SECURITY ACTIVE
+    nmcli = subprocess.check_output('nmcli dev wifi list'.split())
+    regex = re.compile(r''''(?P<ssid>[^']*)'\s+(?P<bssid>[0-9A-Fa-f:]+)\s+(?P<mode>\S+)\s+\d+ MHz\s+\d+ MB/s\s+(?P<signal>\d+)''')
+    bssid_list = [_.groupdict() for _ in filter(None, map(regex.match, nmcli.splitlines()[1:]))]
+    bssid_list.sort(key=lambda x: int(x['signal']), reverse=True)
+    return tuple(_['bssid'] for _ in bssid_list[:11])
+
+def cache_key(prov, mac_list):
+    return json.dumps([prov] + list(mac_list))
+
+def main():
+    syslog.openlog('geolocate', syslog.LOG_PID)
+    mac_list = [_.lower() for _ in (nm_mac() if len(sys.argv) <= 1 else sys.argv[1:])]
+
+    cachedir = os.path.expanduser('~/.cache/geolocate')
+    if not os.path.exists(cachedir):
+        os.mkdir(cachedir)
+
+    shelve_fname = os.path.join(cachedir, 'cache')
+    with contextlib.closing(shelve.open(shelve_fname)) as cache:
+        providers = {'yandex': yandex, 'mozilla': mozilla}
+        results = []
+        for prov, fn in providers.iteritems():
+            try:
+                lat, lon, meters = fn(mac_list)
+                syslog.syslog(syslog.LOG_INFO, '%s(%s) -> %.6f %6f (%d m)' % (prov, ' '.join(mac_list), lat, lon, meters))
+                results.append((meters, lat, lon))
+                cache[cache_key(prov, mac_list)] = (time.time(), lat, lon)
+            except Exception:
+                pass
+        results.sort(key=operator.itemgetter(0)) # best precision
+        if results:
+            lat, lon = results[0][1:]
+        else:
+            results = [
+                cache.get(cache_key(prov, mac_list), (0, 0, 0))
+                for prov in providers.iterkeys()
+            ]
+            results.sort(key=operator.itemgetter(0), reverse=True) # best freshness
+            lat, lon = results[0][1:]
+
+    print '%s:%s' % (lat, lon)
+
+if __name__ == '__main__':
+    main()
