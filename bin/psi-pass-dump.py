@@ -24,9 +24,6 @@
 
   Origin:
   http://darkk.net.ru/home/bin/psi-pass-dump.py
-
-  Changelog:
-  0.1 - Initial revision.
 """
 
 
@@ -102,17 +99,45 @@ def decodePassword(password, key):
     return result
 
 
-if __name__ == '__main__':
-    import xml.etree.ElementTree as ElementTree
-    import os.path
-    tree = ElementTree.parse(os.path.expanduser('~/.psi/profiles/default/config.xml'))
-    for acc in tree.findall('//accounts/account'):
-        jid = acc.findtext('jid')
-        password = acc.findtext('password')
+import xml.etree.ElementTree as ElementTree
+import os.path
+import sys
+
+def main():
+    if len(sys.argv[1:]):
+        flist = sys.argv[1:]
+    else:
+        flist = [
+            os.path.expanduser('~/.psi/profiles/default/config.xml'),
+            os.path.expanduser('~/.psi/profiles/default/accounts.xml'),
+        ]
+
+    for fname in flist:
+        if os.path.exists(fname):
+            parse(fname)
+
+def parse(fname):
+    tree = ElementTree.parse(fname)
+    parent_map = {c: p for p in tree.iter() for c in p}
+    # accounts.xml : <accounts version="0.14" xmlns="http://psi-im.org/options">...
+    for pw in tree.findall('.//{http://psi-im.org/options}password'):
+        jid = parent_map[pw].findtext('./{http://psi-im.org/options}jid')
+        password = pw.findtext('.')
         if password:
             print jid, decodePassword(password, jid)
         else:
             print jid, u"«None»"
+    # config.xml : <psiconf version="1.0">...
+    for pw in tree.findall('.//password'):
+        jid = parent_map[pw].findtext('./jid')
+        password = pw.findtext('.')
+        if password:
+            print jid, decodePassword(password, jid)
+        else:
+            print jid, u"«None»"
+
+if __name__ == '__main__':
+    main()
 
 # vim:set tabstop=4 softtabstop=4 shiftwidth=4: 
 # vim:set expandtab: 
