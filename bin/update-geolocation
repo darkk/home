@@ -25,11 +25,23 @@ for pid in $(pidof redshift); do
         tr '\0' ':' </proc/$pid/cmdline
         echo
     } | awk -F: '
+        BEGIN {
+            PI = 4*atan2(1,1);
+            EARTH_R = 6372.8; # The Earth radius in km
+        }
+        function asin(x) { return atan2(x, sqrt(1-x*x)) }
+        function radians(x) { return x * (PI/180) }
+        function haversine(lat1, lon1, lat2, lon2) {
+            lat1 = radians(lat1);
+            lat2 = radians(lat2);
+            lon1 = radians(lon1);
+            lon2 = radians(lon2);
+            return EARTH_R * 2 * asin(sqrt(sin((lat2-lat1)/2)^2 + cos(lat1)*cos(lat2)*sin((lon2-lon1)/2)^2));
+        }
         ($2 == "-l") {xlat = $3; xlon = $4}
         (NF == 2) {ylat = $1; ylon = $2}
-        END { dlat = xlat - ylat; dlon = xlon - ylon; print int(sqrt(dlat*dlat + dlon*dlon)) }')
-    # FIXME: I should rather use https://en.wikipedia.org/wiki/Haversine_formula
-    if [ "$distance" -ge 1 ]; then
+        END { print int(haversine(xlat, xlon, ylat, ylon)) }')
+    if [ "$distance" -ge 50 ]; then
         restart redshift >/dev/null
         break
     fi
