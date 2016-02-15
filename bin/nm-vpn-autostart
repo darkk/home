@@ -20,6 +20,12 @@ $VPN_ID
 EOF
 )
 
+# You can override this function in /etc/default/nm-vpn-autostart
+# Default behaviour is it's always-true
+may_autostart_vpn() {
+    return 0
+}
+
 # Wait up to `REMOTE_DELAY` seconds, pinging remote host, before starting VPN.
 # Think a bit about your home router reboot: it establishes Wi-Fi network and
 # starts internet connection *after* that, so nm connects to WLAN several
@@ -69,6 +75,10 @@ on_up() {
             exit 0
         fi
     done
+
+    if ! may_autostart_vpn; then
+        exit 0
+    fi
 
     # A full NetworkManager client (like nm-applet) is used for supplying
     # secrets not stored at the system level. -- man nmcli
