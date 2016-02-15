@@ -32,12 +32,19 @@ on_change() {
     if [ $(ps -C nm-applet -o pid= | wc -l) -eq 1 ]; then
         local appletpid=$(ps -C nm-applet -o pid= | tr -cd '[0-9]')
         local user=$(ps --pid "$appletpid" -o user=)
-        # Ubuntu 13.10 requires session cgroup matching.
-        local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
-        find /sys/fs/cgroup/* -xdev -name tasks -print0 | \
-            xargs -0 grep --files-with-matches --line-regexp "^${appletpid}$" | \
-            while read fname; do echo "$future_pid" >"$fname"; done
-        exec sudo -u "$user" xargs --exit -0 "$0" "__powerlift__" </proc/"$appletpid"/environ
+        local user_shell=$(getent passwd "$user" | cut -d : -f 7)
+        # shell is checked to avoid nm-applet launched by `lightdm`
+        if grep -q --fixed-strings --line-regexp "$user_shell" /etc/shells; then
+            # Ubuntu 13.10 requires session cgroup matching.
+            local future_pid="$BASHPID" # trivial $$ does not work as it's already a subshell :)
+            find /sys/fs/cgroup/* -xdev -name tasks -print0 | \
+                xargs -0 grep --files-with-matches --line-regexp "^${appletpid}$" | \
+                while read fname; do echo "$future_pid" >"$fname"; done
+            exec sudo -u "$user" xargs --exit -0 "$0" "__powerlift__" </proc/"$appletpid"/environ
+        else
+            echo "Invalid shell ${user_shell} for user ${user}."
+            exit 1
+        fi
     else
         echo "There are several nm-applet instances! Don't know what to choose."
         ps -C nm-applet -o pid,user,lstart,command
@@ -51,9 +58,7 @@ on_powerlift() {
 }
 
 on_user() {
-    local cmd
-    cmd=$(printf "%q __as_user_locked__" "$0")
-    exec flock --timeout 15 --exclusive "/run/lock/${argv0}.$(id -u)" -c "$cmd"
+    exec flock --timeout 15 --exclusive "/run/lock/${argv0}.$(id -u)" "$0" __as_user_locked__
 }
 
 on_user_locked() {
@@ -68,28 +73,34 @@ on_user_locked() {
                 dig +short -t AAAA "$dest"
                 echo "$dest" # if that's IP address and not DNS name
             done | sort -u)
-        src_addr=$(
+        src_route=$(
             for proto in 6 4; do
                 for addr in $dest_addr; do
                     ip -o "-${proto}" route get "$addr" 2>/dev/null
-                done | awk '($1 ~ /^[0-9a-fA-F.:]*$/) {
-                    for (i = 1; i < NF; ++i) {
-                        if ($(i) == "src") {
-                            if ($1 ~ /:/) {
-                                printf("[%s]\n", $(i+1)); # IPv6
-                            } else {
-                                printf("%s\n", $(i+1)); # IPv4
-                            }
-                            break;
-                        }
-                    }}' | sort -u
+                done
             done)
+        src_addr=$(echo "$src_route" | awk '($1 ~ /^[0-9a-fA-F.:]*$/) {
+            for (i = 1; i < NF; ++i) {
+                if ($(i) == "src") {
+                    if ($1 ~ /:/) {
+                        # Linux MAY use link-local address as SRC address, e.g.:
+                        # 2a02:2f8:2:3::40 from :: via fe80::21b:21ff:fe7a:7bc0 dev wlan0  src fe80::8ea9:82ff:fec4:15c2  metric 0 \    cache
+                        if ($(i+1) !~ /^fe80::/i) {
+                            printf("[%s]\n", $(i+1)); # IPv6
+                        }
+                    } else {
+                        printf("%s\n", $(i+1)); # IPv4
+                    }
+                    break;
+                }
+            }}' | sort -u)
 
         src_count=$(echo "$src_addr" | wc -w)
         if [ "$src_count" -ge 1 ]; then
             if [ "$src_count" -gt 1 ]; then
                 src_msg=$(echo -n "$src_addr" | tr '\n' ' ')
-                echo "${sip} is reachable via several addrs, using the 1st: ${src_msg}"
+                echo "${sip} is reachable via several addrs, using the 1st: ${src_msg}, ip route:"
+                echo "$src_route"
                 src_addr=$(echo "$src_addr" | head -n 1)
             fi
             args="string:local-ip-address=$src_addr"
@@ -99,6 +110,9 @@ on_user_locked() {
         if ( set -o xtrace; mc-tool update "$sip" "$args" ) | tee /dev/stderr | grep -q 'mc-tool reconnect'; then
             ( set -o xtrace; mc-tool reconnect "$sip" )
         fi
+    done
+    for acc in $(mc-tool list | grep ^gabble/jabber/); do
+        ( set -o xtrace; mc-tool reconnect "$acc" )
     done
 }
 
@@ -111,7 +125,9 @@ on_user_locked() {
         on_user
     elif [ "$1" = "__as_user_locked__" ]; then
         on_user_locked
-    else
+    elif [[ "$2" != dhcp* ]]; then
+        # Well-behaved DHCP server will not change my IP address on-the-fly,
+        # that's why I ignore dhcp-events to avoid useless reconnections.
         set -o errexit
         on_change
     fi
