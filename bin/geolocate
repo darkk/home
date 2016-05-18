@@ -74,9 +74,9 @@ def mozilla(mac_list):
 
 def nm_mac():
     # SSID BSSID MODE FREQ RATE SIGNAL SECURITY ACTIVE
-    nmcli = subprocess.check_output('nmcli dev wifi list'.split())
-    regex = re.compile(r''''(?P<ssid>[^']*)'\s+(?P<bssid>[0-9A-Fa-f:]+)\s+(?P<mode>\S+)\s+\d+ MHz\s+\d+ MB/s\s+(?P<signal>\d+)''')
-    bssid_list = [_.groupdict() for _ in filter(None, map(regex.match, nmcli.splitlines()[1:]))]
+    nmcli = subprocess.check_output('nmcli -f bssid,signal dev wifi list'.split())
+    regex = re.compile(r'''(?P<bssid>[0-9A-Fa-f:]+)\s+(?P<signal>\d+)''')
+    bssid_list = [_.groupdict() for _ in filter(None, map(regex.match, nmcli.splitlines()))]
     bssid_list.sort(key=lambda x: int(x['signal']), reverse=True)
     return tuple(_['bssid'] for _ in bssid_list[:11])
 
